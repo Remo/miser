@@ -30,7 +30,7 @@ class MiserHelper {
 		private $Use_Sprites			= FALSE;		// Use CSS sprites
 		private $ga_loc					= 0;			// Relocate/remove google analytics code (1=MOVE TO HEAD, 2=REMOVE).
 		private $ignore_selects			= FALSE; 		// Ignore IE select switches.
-		private $eu_cookie				= "miser_eu_cookie";			// The cookie name to detect when requiring GA to be removed from the page. This ust be changed to a unique value!
+		private $eu_cookie				= FALSE;			// The cookie name to detect when requiring GA to be removed from the page. This ust be changed to a unique value!
 		private $del_cookies			= array();
 		private $replace_keys			= FALSE;		// This switches the mode of adding keys. Default is to add, if replace is TRUE then the whole list is replaced.
 		// Benchmark memory
