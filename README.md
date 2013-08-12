@@ -1,4 +1,4 @@
-miser
-=====
+miser concrete5 package
+=======================
 
-a wrapper for http://sourceforge.net/projects/miser/
+all credits go to phallanx / http://sourceforge.net/projects/miser/
