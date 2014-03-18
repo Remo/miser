@@ -6,7 +6,7 @@ class MiserPackage extends Package {
 
     protected $pkgHandle = 'miser';
     protected $appVersionRequired = '5.6.1.2';
-    protected $pkgVersion = '0.0.1';
+    protected $pkgVersion = '1.9.2';
 
     public function getPackageName() {
         return t("Miser");
