@@ -22,9 +22,8 @@ class miser_CDNS{
 		// it exists. If not, then it adds the CDNS then creates the cache file for faster subsequent acccess.
 		public function __construct($path=NULL) {
 			// load the CDN list from cache if the file exists
-			if (isset($path))	$this->cache_path = $path . self::CDN_FILE;
-			else $this->cache_path = dirname(__FILE__) . self::CDN_FILE;
-			
+			if (!empty($path))	$this->cache_path = $path 	. self::CDN_FILE;
+			else $this->cache_path = dirname(__FILE__) 		. self::CDN_FILE;
 			if (@file_exists($this->cache_path)) $this->CDNS = unserialize(file_get_contents($this->cache_path));
 			else{
 				$this->Add('modernizr',				'HEAD',0,	'cdnjs.cloudflare.com/ajax/libs/modernizr/2.0.6/modernizr.min.js');
@@ -59,9 +58,9 @@ class miser_CDNS{
 				$this->Add('mootools-core.js',		'FOOT',1,	'cdnjs.cloudflare.com/ajax/libs/mootools/1.3.2/mootools-yui-compressed.js');
 				$this->Add('ext-core.js',			'FOOT',1,	'cdnjs.cloudflare.com/ajax/libs/ext-core/3.1.0/ext-core.js');
 				
-				//$this->Add('jquery.tools',			'FOOT',2,	'cdn.jquerytools.org/1.2.7/all/jquery.tools.min.js');// need to be smarter here...somehow
+				$this->Add('jquery.tools',			'FOOT',2,	'cdn.jquerytools.org/1.2.6/all/jquery.tools.min.js');// need to be smarter here...somehow
 				
-				//$this->Add('jquery.backstretch.js',	'FOOT',3,	'cdn.ucb.org.br/Scripts/jquery.backstretch.js');
+				$this->Add('jquery.backstretch.js',	'FOOT',3,	'cdn.ucb.org.br/Scripts/jquery.backstretch.js');
 				
 			}
 		}
@@ -102,7 +101,7 @@ class miser_CDNS{
 		}
 		// Deletes a CDN from the list.
 		public function Clear_Cache(){
-			if (@file_exists($this->cache_path)) return unlink($this->cache_path);
+			if (@file_exists($this->cache_path)) return @unlink($this->cache_path);
 		}
 		// Return the CDN object by name.
 		// If a section is defined. Only returns the object if it exists in that section

@@ -6,10 +6,8 @@ function createCookie(name,value,days) {
 		}
 		else var expires = "";
 		document.cookie = name+"="+value+expires+"; path=/";
-		var doc = content.document;
-		var body = doc.body;
-		var div = doc.getElementById("miser_cookies_sticky");
-		body.removeChild(div);
+		var div = document.getElementById("miser_cookies_sticky");
+		document.body.removeChild(div);
 		}
 
 $(document).ready(function(){

@@ -2,12 +2,13 @@
 // Cache directories
 $this->css_dir( REL_DIR_FILES_CACHE.'/css/' );
 $this->js_dir ( REL_DIR_FILES_CACHE.'/js/' );
+$this->cache_dir ( REL_DIR_FILES_CACHE );
 $this->dir_rel ='';	
 
 // Organisational lists
-$this->keys_no_file		( array ('tiny_mce.js','ccm.app.js','jquery.ui.js') );	
-$this->keys_ignore 		( array ('tony_tracker','recaptcha') );
-$this->keys_top_footer	( array ('var CCM_TOOLS_PATH','var CCM_SECURITY_TOKEN') );	
+$this->keys_no_file		( array ('tiny_mce.js','ccm.app.js','jquery.ui.js','compliance.js') );	
+$this->keys_ignore 		( array ('tony_tracker','recaptcha','createCookie','NDPHPBlock') );
+$this->keys_top_footer	( array ('var CCM_TOOLS_PATH', 'var CCM_SECURITY_TOKEN','ccm_token') );	
 $this->cookies			( array	(SESSION) );	
 
 if (version_compare(APP_VERSION,'5.4.2','>=')){
@@ -71,11 +72,14 @@ if (version_compare(APP_VERSION,'5.4.2','>=')){
 }
 // Admin mode hook
 // Prevent moving of analytics when in Admin mode (work-around)	
-$u = new User();
-if ($u->isSuperUser())  {
-		$this->keys_ignore($this->keys_ga());
-		$this->minify_html(2); // minifier contention - use old method	
-		$this->cookie_override = TRUE;		
+function miserStartOptimise($miser){
+	$u = new User();
+	if ($u->isSuperUser())  {
+		//$miser->minify_html(2); // minifier contention - use old method	
+		$miser->keys_ignore($miser->keys_ga());
+		$miser->cookie_override = TRUE;		
+	}
+	
 }
 // CMS sepcific file location
 // find the CSS and javascript files

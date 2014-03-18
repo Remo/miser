@@ -1,5 +1,5 @@
 <?php 
-/*	Miser 1.8.2
+/*	Miser 1.9.1b
  *	A helper class that attempts to optimise and improve a websites user responsiveness
  * 	by re-organising, consolodating and minifying javascript and style sheets.
  * @author ShaunR
@@ -18,7 +18,7 @@ class MiserHelper {
 		// Minifying
 		private $endis_js_min 			= 3;		    // Enable/disable javascript minifcation 	0=OFF, 1=INLINE ONLY 2=FILE ONLY 3=INLINE+FILE
 		private $endis_css_min 			= 3;			// Enable/disable CSS minification			0=OFF, 1=INLINE ONLY 2=FILE ONLY 3=INLINE+FILE
-		private $endis_html_min			= 1;			// Enable/disable HTML minification			0=OFF, 1=MINIFY USING JSMIN, 2=MINIFY USING QUICK
+		private $endis_html_min			= 3;			// Enable/disable HTML minification			0=OFF, 1=MINIFY USING MINIFY_HTML OLD, 2=MINIFY USING QUICK, 3=MINIFY USING MINIFY_HTML FULL
 		// Combining
 		private $endis_js_combine		= TRUE;			// Enable/disable combining javascript into 1 file
 		private $endis_css_combine		= TRUE;			// Enable/disable combining css into 1 file
@@ -30,7 +30,7 @@ class MiserHelper {
 		private $Use_Sprites			= FALSE;		// Use CSS sprites
 		private $ga_loc					= 0;			// Relocate/remove google analytics code (1=MOVE TO HEAD, 2=REMOVE).
 		private $ignore_selects			= FALSE; 		// Ignore IE select switches.
-		private $eu_cookie				= FALSE;			// The cookie name to detect when requiring GA to be removed from the page. This ust be changed to a unique value!
+		private $eu_cookie				= "miser_1eu_cookie";			// The cookie name to detect when requiring GA to be removed from the page. This ust be changed to a unique value!
 		private $del_cookies			= array();
 		private $replace_keys			= FALSE;		// This switches the mode of adding keys. Default is to add, if replace is TRUE then the whole list is replaced.
 		// Benchmark memory
@@ -48,26 +48,30 @@ class MiserHelper {
 		private $CDNS					= NULL;			// Code Distribution Network object
 		private $sprite					= NULL;			// Sprite generator object
 		// Cache Files
-		private $dir_css 	='/css/';		
-		private $dir_js		='/js/';
-		public $dir_rel ='';
+		private $dir_css 				= '/css/';		
+		private $dir_js					= '/js/';
+		private $dir_cache 				= '';
+		public  $cacheLifeTime 			= 604800; 		// Cache cleanup lifetime = 7 days
+		public  $dir_rel 				= '';
+		public  $lic 					= 'CC';
 		// Regex
 		private $regex_head_end = '#<\s*/head\s*>#i';
-		private	$regex_body_start = '#<\s*body\s*>#i';
+		private	$regex_body_start = '#<\s*body.*?>#i';
 		
-		const MISER_VERSION = '1.8.2';
+		const MISER_VERSION = '1.9.2';
 		const MERGE_CSS		= '_merge.css';
 		const MERGE_JS		= '_merge.js';
 		
 		// Initialisation
 		function __construct($root = NULL) {
 			$this->top_Foot_keys 	= array();
-			$this->ga_keys			= array( '_gaq.push', 'ga.async' );	
+			$this->ga_keys			= array( '_gaq.push', 'ga.async','google-analytics' );	
 			$this->gads_keys		= array( 'google_ad', 'show_ads.js','doubleclick.net' );			
 			$this->ignore_keys 		= array( 'gmodules.com');
 			$this->remove_keys  	= array( 'jsapi' );
 			$this->nofile_keys  	= array( 'jquery.js');
 			$this->load_support();
+			
 			//  Control Defines
 			if (defined( 'MISER_ENABLE' ) )				$this->enable(MISER_ENABLE);
 			if (defined( 'MISER_KEYS_REPLACE' ) )		$this->keys_replace		(MISER_KEYS_REPLACE);
@@ -78,7 +82,7 @@ class MiserHelper {
 			if (defined( 'MISER_KEYS_REMOVE' ) )		$this->keys_remove 		(array_map('trim',explode(',',MISER_KEYS_REMOVE)),	$this->replace_keys );
 			if (defined( 'MISER_KEYS_NO_FILE' ) )		$this->keys_no_file		(array_map('trim',explode(',',MISER_KEYS_NO_FILE)),	$this->replace_keys );
 			if (defined( 'MISER_KEYS_GA' ) )			$this->keys_ga 			(array_map('trim',explode(',',MISER_KEYS_GA)),		$this->replace_keys );
-			if (defined( 'MISER_COOKIES' ) )			$this->del_cookies		(array_map('trim',explode(',',MISER_COOKIES)),		$this->replace_keys );
+			if (defined( 'MISER_COOKIES' ) )			$this->cookies			(array_map('trim',explode(',',MISER_COOKIES)),		$this->replace_keys );
 				
 			if (defined( 'MISER_MINIFY_CSS' ) )			$this->minify_css(MISER_MINIFY_CSS);
 			if (defined( 'MISER_MINIFY_JS' ) )			$this->minify_js(MISER_MINIFY_JS);
@@ -99,7 +103,9 @@ class MiserHelper {
 			if (defined( 'MISER_DIR_CSS' ) )			$this->css_dir(MISER_DIR_CSS);		
 			if (defined( 'MISER_DIR_JS' ) )				$this->js_dir(MISER_DIR_JS);
 			if (defined( 'MISER_DIR_REL' ) )			$this->dir_rel=MISER_DIR_REL;
-
+			
+			if (defined( 'MISER_CACHE_LIFETIME' ) )		$this->cacheLifeTime = MISER_CACHE_LIFETIME;
+			
 		}
 		
 		/* Properties and Methods to get/set Misers options */
@@ -108,9 +114,14 @@ class MiserHelper {
 		public function optimise($content){
 			return $this->do_optimise($content);
 		}
-		// Retrieves the class version number		
+		// Retrieves the Miser version number		
 		public function version(){
-			return self::MISER_VERSION;
+			$lic=glob(dirname(__FILE__)."/Miser_*\.pdf");
+			if (is_array($lic) && !empty($lic)) {
+				$this->lic = $lic[0];
+				$this->lic = str_ireplace("Miser_","",basename($this->lic,".pdf"));
+			}
+			return self::MISER_VERSION." [".strtoupper($this->lic)."]";
 		}
 		//For win IIS DOCUMENT_ROOT
 		public function set_root($root = NULL){
@@ -132,6 +143,14 @@ class MiserHelper {
 				$dir = substr($dir, strlen($_SERVER['DOCUMENT_ROOT']));
 			$this->dir_js = $dir;	
 		}	
+		//Gets/Sets the CDN cache file directory
+		public function cache_dir($dir = NULL){
+			if (!isset($dir)) return $this->dir_cache;
+			if (stripos($dir,$_SERVER['DOCUMENT_ROOT']) !== FALSE)
+				$dir = substr($dir, strlen($_SERVER['DOCUMENT_ROOT']));
+			$this->dir_cache = $dir;	
+		}
+		
 		public function CDNS_cache($dir = NULL){
 			$file = $this->clean($this->CDNS->cache_file());
 			if (stripos($file,$_SERVER['DOCUMENT_ROOT']) !== FALSE)
@@ -264,8 +283,11 @@ class MiserHelper {
 			$this->eu_cookie = $value;
 		}
 		// clears the CSS, JS and CDN caches
-		public function cache_clear( $value = 1 ){
-			return $this->clear_cache($value);
+		// If 1 clears JS and CSS
+		// If 2 clears CDN
+		// If 3 clears JS, CSS and CDN
+		public function cache_clear( $value = 1,$checkAtime = FALSE ){
+			return $this->clear_cache($value, $checkAtime);
 		}
 		// Returns the size of the css cache directory
 		// Bytes=TRUE Returns the size in bytes
@@ -324,7 +346,9 @@ class MiserHelper {
 		
 		Protected function do_optimise( $html ){			
 			// Passthrough if we are disabled
-			
+			if (function_exists ( 'miserStartOptimise' )){
+				call_user_func ( 'miserStartOptimise',$this );
+			}
 			if ( !$this->endis_all ) return $html;
 			// Start Timer.
 			$this->start = microtime( true );
@@ -365,11 +389,14 @@ class MiserHelper {
 			    $this->compliance["CONTENT"] = str_ireplace('[MISER_COOKIE]',$this->eu_cookie,$this->compliance["CONTENT"]);
 				$html = preg_replace($this->regex_head_end, 	$this->compliance["CSS"]."\n</head>", 	$html);
 				$html = preg_replace($this->regex_head_end, 	$this->compliance["JS"]."\n</head>", 	$html);
-				$html = preg_replace($this->regex_body_start, 	'<body>'.$this->compliance["CONTENT"], 	$html);
-				foreach ($this->del_cookies as $cookie) 
-					if (!empty($cookie)) {
-						setcookie($cookie, "", -1,DIR_REL."/");
-					}
+				$bodyTag = preg_match ( $this->regex_body_start , $html ,$matches);
+				if ($bodyTag){
+					$html = str_ireplace($matches[0], 	$matches[0].$this->compliance["CONTENT"], 	$html);
+					foreach ($this->del_cookies as $cookie) 
+						if (!empty($cookie)) {
+							setcookie($cookie, "", -1,DIR_REL."/");
+						}
+				}
 			}
 			else{
 				$this->ignore_keys =	$this->safe_merge($this->ignore_keys, $this->gads_keys);
@@ -386,7 +413,7 @@ class MiserHelper {
 				}
 			
 			// find IF selects and add them to the ignores list
-			if ( preg_match_all( '#<\s*!\s*--\s*\[\s*if.+-->#smUi',$html,$selects )>0 ) {
+			if ( preg_match_all( '#<\s*!\s*--\s*\[\s*if.+\]-->#smUi',$html,$selects )>0 ) {
 				foreach ( $selects[0] as $item ) {
 				if ( preg_match_all( '#(?|href|src)\s*=\s*["\'](.+)["\']#i',$item,$urls) >0) {
 						foreach ( $urls[1] as $url )
@@ -409,7 +436,6 @@ class MiserHelper {
 					// Not ignored - Process it.
 					$html = str_replace( $item,'',$html );
 					// Check to see if it needs to be removed
-					
 					if ($this->CheckList( $item, $this->remove_keys ) )				continue;
 					// Categorise
 					if ( $this->CheckList( $item, $this->top_Head_keys ) )			$js_Top_Header[] = $item; 
@@ -423,10 +449,9 @@ class MiserHelper {
 			}
 			// Minify top footer Js if required
 			if (!empty($js_Top_Footer) && ($this->endis_js_min & 1)){
-				$js_Top_Footer =  JSMin::minify( @implode('',$js_Top_Footer) );
+				$js_Top_Footer =  array(JSMin::minify( @implode('',$js_Top_Footer) ));
 			}
 			// Javascript links to files			
-			
 			$remove_items = array();
 			if ( preg_match_all( '#<\s*script\s*(type\s*=\s*["\']text/javascript["\']\s*)?src=.+<\s*/script\s*>#smUi',$html,$_js_links )>0 ) {
 				foreach ( $_js_links[0] as $item ) {
@@ -484,7 +509,15 @@ class MiserHelper {
 						$css_links[] = $item;
 				}			
 			}
-
+			
+			//if ( preg_match_all( '#<\s*img.*src=([\"\']?.+[\"\']?).*>#smUi',$html,$_img_links )>0 ) {
+			//	foreach ( $_img_links[0] as $item ) {
+					// Ignored?
+			//		if ( $this->CheckList( $item, $this->ignore_keys ) )			continue;
+					
+					//$html = str_replace('src="','src="' .BASE_URL.'.nyud.net',$html);			
+			//	}
+			//}
 			// Bookmark icons
 			$ico = $this->find_replace( '#<\s*link.+image/x-icon.+>#iU',$html );
 			
@@ -553,12 +586,12 @@ class MiserHelper {
 			
 			//To the Head
 			$head = $this->safe_merge( $ico,$css_links,$css_inlne,$css_selects,$async,$js_Top_Header );
-			$head = @implode( "\n",$head ) . "\n</head>\n";
+			$head = @implode( "",$head ) . "</head>";
 			$html =  str_ireplace( '</head>', $head, $html );
 
 			// To the footer
 			$body = $this->safe_merge( $js_Top_Footer, $js_links,  $js_inline );
-			$body = @implode( "\n",$body ) . "\n</body>\n";
+			$body = @implode( "",$body ) . "</body>";
 			$html =  str_ireplace( '</body>', $body, $html );
 			
 			// calculate processing time
@@ -568,7 +601,7 @@ class MiserHelper {
 			if ($this->endis_html_min>0)	$html = $this->html_minify($html);
 			/* add exec time. Removing the following line is a breach of the License! */
 			if (defined('SR_CACHE_VERSION')) $cache = "[Using SR Cache: ".SR_CACHE_VERSION."]";
-			$html = preg_replace($this->regex_head_end,"\n<!-- Sorted by Miser ".self::MISER_VERSION . " in ". round( $exec_time,3 ) ." Secs ".$cache." -->\n</head>", 	$html);					
+			$html = preg_replace($this->regex_head_end,"\n<!-- Sorted by Miser ".$this->version() ." in ". round( $exec_time,3 ) ." Secs ".$cache." -->\n</head>", 	$html);					
 			return $html;	
 		}
 		
@@ -609,7 +642,7 @@ class MiserHelper {
 			if (empty($contents)) return FALSE;
 			$hash=md5($contents);
 			$filename = $hash .  self::MERGE_CSS;
-			// Write the file only if it it's chsnged.
+			// Write the file only if it's changed.
 			if (!file_exists($dir . $filename )){
 				// Minify CSS?
 				if ($this->endis_css_min & 2) $contents = $this->css_minify( $contents );
@@ -627,6 +660,7 @@ class MiserHelper {
 			if ( $num > 0 ){
 				for ($i=0; $i < $num; $i++){
 					$url = $this->clean($imports[1][$i]);
+					if (stripos($url,"http") !== FALSE) continue;			// Ignore remote calls
 					$_contents = $this->get_files(array($url),"#(".$url.")#",TRUE);	
 					$contents = str_replace($imports[0][$i],$_contents,$contents);				
 				}
@@ -650,10 +684,12 @@ class MiserHelper {
 			//Check for changes
 			$hash=md5($contents);
 			$filename = $hash .  self::MERGE_JS;
-			// Write the file only if it it's chsnged.
+			// Write the file only if it it's changed.
 			if (!file_exists($dir . $filename)){
 				// Minify?
-				if ($this->endis_js_min & 2) $contents =   JSMin::minify( $contents );	
+				if ($this->endis_js_min & 2)
+				//if ($this->endis_js_min & 2)				
+					$contents =   JSMin::minify( $contents );	
 				$this->fsave($dir . $filename, $contents);
 			}	
 			//Return the path URL to the file so that it can be put as a link
@@ -730,12 +766,16 @@ class MiserHelper {
 
 		Protected function html_minify( $html ) {
 			$path = $this->clean(dirname(__FILE__)).'/miser_support/minify_HTML.php';
-			if  (@file_exists( $path ) && ( $this->endis_html_min == 1 )){
+			if  (@file_exists( $path ) && ( $this->endis_html_min & 1 )){
 				require_once $path;
-				$m = new Minify_HTML;
-				return $m->minify($html);
+				$options['fullCompress'] = $this->endis_html_min == 3;
+				//$m = new Minify_HTML($html,$options);
+				
+				//var_dump($this->endis_html_min);
+				return Minify_HTML::minify($html,$options);
 			}
 			else {
+			
 			//	$html = preg_replace('#\s*<!--\s*[^\[<>].*?(?<!!)\s*-->\s*#s', '', $html); 	//comments - also strips things like google ads
 			$html = preg_replace( '#(^(\s{2,}))+|(\s{2,}+)$#sm', '', $html );				//Whitespace
 			$html = str_replace( '< ', '<', $html );
@@ -754,7 +794,7 @@ class MiserHelper {
 				if (is_array($arg)) $list = array_merge($list,$arg);
 				else $list = array_merge($list, array($arg));
 			}
-			return array_filter($list);
+			return array_unique(array_filter($list));
 		}
 		
 		// replaces css relative urls with full ones
@@ -767,10 +807,11 @@ class MiserHelper {
 			@array_pop ( $s_path );	
 			//find css urls 	
 			if ( preg_match_all( '#url\((.+)\)#smUi',$css,$urls ) >0 ){
-				$urls = array_unique($urls[1]);	
 				// Found some - discard duplicates
+				$urls = array_unique($urls[1]);	
 				foreach( $urls as $url ){											// Process each url
-					if (stripos($url,"http") !== FALSE) continue;
+					if (stripos($url,"http") 		!== FALSE) continue;			// Ignore remote calls
+					if (stripos($url,"data:image/") !== FALSE) continue;			// Ignore embedded images
 					$spath = implode( '/',$s_path )."/";
 					$url_cleaned = $this->clean($url);
 					$num = preg_match_all( '#\.\./#',$url,$backup );				// Detect relative parent paths
@@ -786,9 +827,9 @@ class MiserHelper {
 						$css = str_replace( $url, $full_url, $css ); 				//replace all occurancies
 					}
 					else {															//b ). it's a subdirectory.
-						if (stripos($url,'index.php') === FALSE){
+						if (stripos($url,'index.php') === FALSE){					
 							if (!@file_exists( $_SERVER['DOCUMENT_ROOT'].$url_cleaned))
-							$css = str_replace( $url, '"' .$this->clean( $spath.$url_cleaned) . '"', $css );				//just append and replace
+							$css = str_replace( $url, '"' .$this->clean( $spath.$url_cleaned) . '"', $css );				
 						}
 					}
 				}
@@ -800,7 +841,9 @@ class MiserHelper {
 			if (substr($txt,-1) =="/") $txt  = substr($txt,0,-1);
 			$txt = str_replace('//',"/",$txt);
 			$txt = str_replace('\\',"/",$txt);
-			return str_replace(array("'",'"','`'),"",$txt);
+			$txt = str_replace('..',"",$txt);
+			$txt = str_replace("\x00","",$txt);
+			return trim(str_replace(array("'",'"','`',";"),"",$txt));
 		}
 		// Outputs debug strings
 		Protected function debug($val="",$name=""){		
@@ -815,7 +858,7 @@ class MiserHelper {
 			else  $list = array_unique($this->safe_merge( $list, $val));
 		}
 		
-		//Windows IIS doesn't set the Document Root variable. So eaise a warning and get
+		//Windows IIS doesn't set the Document Root variable. So raise a warning and get
 		// them to manually define it.
 		private function check_root(){		
 			if (empty($_SERVER['DOCUMENT_ROOT']) || !@is_dir($_SERVER['DOCUMENT_ROOT'])){
@@ -849,12 +892,21 @@ class MiserHelper {
 			$this->compliance["JS"] = $this->clean(dirname(__FILE__)).'/miser_support/compliance/compliance.js';
 			$this->compliance["CSS"] = $this->clean(dirname(__FILE__)).'/miser_support/compliance/compliance.css';
 			$this->compliance["CONTENT"] = $this->clean(dirname(__FILE__)).'/miser_support/compliance/compliance.html';
+			
 			if (@file_exists($this->compliance["JS"]) && @file_exists($this->compliance["CSS"]) && @file_exists($this->compliance["CONTENT"]) ){
 				$this->compliance["JS"]=str_ireplace($_SERVER['DOCUMENT_ROOT'],"",$this->compliance['JS']);
 				$this->compliance["CSS"]=str_ireplace($_SERVER['DOCUMENT_ROOT'],"",$this->compliance['CSS']);
 				$this->compliance["JS"]='<script type="text/javascript" src="'.$this->compliance['JS'].'"></script>';
 				$this->compliance["CSS"]='<link rel="stylesheet" type="text/css" href="'.$this->compliance['CSS'].'" />';
-				$this->compliance["CONTENT"]=file_get_contents( $this->compliance["CONTENT"]);
+				$this->compliance["CONTENT"]=@file_get_contents( $this->compliance["CONTENT"]);
+				if ($this->compliance["CONTENT"] === FALSE){
+					// Reported error on some windows platforms due to full path-remove ROOT
+					$this->compliance["CONTENT"]=str_ireplace($_SERVER['DOCUMENT_ROOT'],"",$this->compliance['CONTENT']);
+					$this->compliance["CONTENT"]=@file_get_contents( $this->compliance["CONTENT"]);
+					if ($this->compliance["CONTENT"] === FALSE){
+						unset($this->compliance); //Failed to load compliance contents-turn off.						
+					}
+				}
 			}
 			else{
 				
@@ -879,40 +931,59 @@ class MiserHelper {
 			$path = explode( "?",$path );
 			$path = $path[0];
 			if (stripos($path,$_SERVER['DOCUMENT_ROOT']) === FALSE) $path = $_SERVER['DOCUMENT_ROOT'] .$this->dir_rel . $path;
-			//if (stripos($path,$_SERVER['DOCUMENT_ROOT']) === FALSE) $path = $_SERVER['DOCUMENT_ROOT'] .$path;
 			if (@file_exists($path) && @is_file($path)) return $path;
 			else return FALSE;	
 		}
-		Private function clear_cache($what=1){
+		Private function clear_cache($what=1,$checkAtime=FALSE){
 			$ret=FALSE;
-			if ($what && 1){
-				$ret = 	($this->del_dir( $_SERVER['DOCUMENT_ROOT'] . $this->dir_css,'_merge.css') && 
-						 $this->del_dir( $_SERVER['DOCUMENT_ROOT'] . $this->dir_js, '_merge.js'));
+			if ($what & 1){
+				$ret = 	$this->del_dir( $_SERVER['DOCUMENT_ROOT'] . $this->dir_css,'_merge.css',$checkAtime) + 
+						 $this->del_dir( $_SERVER['DOCUMENT_ROOT'] . $this->dir_js, '_merge.js',$checkAtime);
 			}
-			if ($what && 2){
-				$ret =$ret || $this->CDNS->Clear_Cache();
+			if ($what & 2){
+				$ret =$ret + $this->CDNS->Clear_Cache();
 			}	
 			return $ret;				
 		}
-		Private function del_dir($path=NULL,$ext=''){
-			if (strlen($path)<3) return FALSE;			//Sanity check
-			if (!is_writable($path)) return FALSE;		//Sanity check
-			if (!empty($ext)) $ext = '/*'.$ext;			//Append wildcards
+		Private function del_dir($path=NULL,$ext='',$checkAtime=FALSE,$n=FALSE){
+		
+			if (strlen($path)<3) 		return FALSE;	//Sanity check
+			if (!is_writable($path)) 	return FALSE;	//Sanity check
+			if (!empty($ext)) $ext = '/*'.$ext;			
 			else $ext = '/*';
+			$path = $this->clean($path);				// TODO Being lazy here!
 			// Delete recursively.
-			return is_file($path)?  @unlink($path): array_map(array( $this, 'del_dir' ),glob($path.$ext))==@rmdir($path);
+			if (is_file($path)){
+				// It's a file.
+				$ft = fileatime($path) ;
+				// Check access time vs Cacheliftime
+				if (!$checkAtime || (time()-$ft > $this->cacheLifeTime)){
+					return @unlink($path);
+				}
+			}else{
+				// It's a dir. List the contents and recurse
+				$f = array_map(array( $this, 'del_dir' ),
+								glob($path.$ext),
+								array(),
+								array($checkAtime),
+								array($n)) ;
+				$d = @rmdir($path);
+				return ($f !== FALSE) || ($d !== FALSE);
+			}
+			return TRUE; // Only gets here if it is a file and is fresh
 		}
 		
 		Private function dir_Size($dir=NULL) { 
-		$size = 0; 
-		if (strlen($dir)<2) return 0;			//sanity check
-		if (file_exists($_SERVER['DOCUMENT_ROOT'].$dir)){
-			foreach(new RecursiveIteratorIterator(new RecursiveDirectoryIterator($_SERVER['DOCUMENT_ROOT'].$dir)) as $file){ 
-				$size+=$file->getSize(); 
-			} 
-		}
-		return $size; 
+			$size = 0; 
+			if (strlen($dir)<2) return 0;			//sanity check
+			if (file_exists($_SERVER['DOCUMENT_ROOT'].$dir)){
+				foreach(new RecursiveIteratorIterator(new RecursiveDirectoryIterator($_SERVER['DOCUMENT_ROOT'].$dir)) as $file){ 
+					$size+=$file->getSize(); 
+				} 
+			}
+			return $size; 
 		} 
+		// Pretty size.
 		Private function format_bytes($bytes, $precision = 2) { 
 			$units = array('B', 'KB', 'MB', 'GB', 'TB'); 
    
